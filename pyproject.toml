@@ -13,4 +13,5 @@ dependencies = [
     "polars>=1.40.1",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
+    "tqdm>=4.67.3",
 ]
