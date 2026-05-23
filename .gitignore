@@ -25,7 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 test.ipynb
-data/raw/games.csv
+data/raw/
+data/processed/
 MANIFEST
 
 # PyInstaller

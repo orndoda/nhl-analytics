@@ -1,10 +1,8 @@
-from typing import Literal, Optional
-from datetime import datetime, timedelta
-from pathlib import Path
-
+from typing import Literal, Optional, Iterable
+from tqdm.auto import tqdm
 import pandas as pd
 import polars as pl
-from tqdm.auto import tqdm
+from datetime import datetime, timedelta
 from nhlpy import NHLClient
 
 
@@ -155,5 +153,156 @@ def get_games_in_range(
     # Deduplicate in polars by id if present
     if 'id' in result_pl.columns:
         result_pl = result_pl.unique(subset=['id'])
+
+    return result_pl
+
+def _detect_event_id_column(df: pd.DataFrame) -> Optional[str]:
+    """Return the best column name to use as a unique play id, or None."""
+    candidates = [
+        "about_eventId", "eventId", "about_eventIdx", "eventIdx",
+        "playIndex", "id"
+    ]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+def get_pbp_for_games(
+    game_ids: Iterable[str],
+    client: NHLClient,
+    mode: Literal['pandas', 'polars'] = 'pandas'
+) -> None | pd.DataFrame | pl.DataFrame:
+    """
+    Fetch play-by-play for each game_id in game_ids and return a single table.
+
+    - game_ids: iterable of game id strings (e.g., ['2013020004', ...])
+    - client: NHLClient instance
+    - mode: 'pandas' or 'polars' (default 'pandas')
+
+    Behavior:
+    - Normalizes nested play JSON with pd.json_normalize(..., sep='_').
+    - Keeps the union of columns across all games.
+    - Adds a canonical 'game_id' column and a canonical 'eventId' column (created if missing).
+    - Deduplicates plays using the composite key (game_id, eventId).
+    - Returns None if no plays were found for any game.
+    """
+    if mode not in ("pandas", "polars"):
+        raise ValueError("mode must be 'pandas' or 'polars'")
+
+    per_game_frames: list[pd.DataFrame] = []
+    any_plays = False
+
+    game_list = list(game_ids)
+    with tqdm(game_list, desc="Fetching PBP", unit="game") as bar:
+        for gid in bar:
+            try:
+                payload = client.game_center.play_by_play(game_id=str(gid))
+            except Exception:
+                bar.set_postfix(last_completed=gid)
+                continue
+
+            bar.set_postfix(last_completed=gid)
+
+            plays = payload.get("plays") if isinstance(payload, dict) else None
+            if not plays:
+                continue
+
+            try:
+                df = pd.json_normalize(plays, sep="_")
+            except Exception:
+                continue
+
+            # Attach game_id for every row
+            df["game_id"] = str(gid)
+
+            # Detect an event id column; if missing, create a synthetic one
+            event_col = _detect_event_id_column(df)
+            if event_col is None:
+                # synthetic per-play id using game id + row index
+                df["__row_id"] = df.index.to_series().apply(lambda i, g=gid: f"{g}_{i}")
+                event_col = "__row_id"
+
+            # Create a canonical 'eventId' column (string) for dedupe across games
+            df["eventId"] = df[event_col].astype(str)
+
+            # Ensure game_id is string for robust dedupe
+            df["game_id"] = df["game_id"].astype(str)
+
+            # Record which column was used (optional, kept in attrs)
+            df.attrs["event_id_col"] = event_col
+
+            per_game_frames.append(df)
+            any_plays = True
+
+    if not any_plays:
+        return None
+
+    # Build canonical union of columns across all frames
+    all_columns: list[str] = []
+    for f in per_game_frames:
+        for c in f.columns:
+            if c not in all_columns:
+                all_columns.append(c)
+
+    # Ensure canonical columns include 'game_id' and 'eventId' (they should)
+    if "game_id" not in all_columns:
+        all_columns.insert(0, "game_id")
+    if "eventId" not in all_columns:
+        all_columns.insert(1 if all_columns[0] == "game_id" else 0, "eventId")
+
+    # Reindex each frame to the canonical column order (adds missing cols as NaN)
+    reindexed_frames = [f.reindex(columns=all_columns) for f in per_game_frames]
+
+    # Concatenate (union of columns preserved)
+    combined = pd.concat(reindexed_frames, ignore_index=True, sort=False)
+
+    # Ensure game_id and eventId exist and are strings
+    if "game_id" not in combined.columns:
+        combined["game_id"] = combined.index.to_series().apply(lambda i: "")
+    combined["game_id"] = combined["game_id"].astype(str)
+
+    if "eventId" not in combined.columns:
+        combined["eventId"] = combined.index.to_series().apply(lambda i: f"{i}")
+    combined["eventId"] = combined["eventId"].astype(str)
+
+    # Deduplicate by composite key (game_id, eventId), keep first occurrence
+    combined = combined.drop_duplicates(subset=["game_id", "eventId"], keep="first").reset_index(drop=True)
+
+    # Parse common datetime fields if present
+    if "about_dateTime" in combined.columns:
+        combined["about_dateTime"] = pd.to_datetime(combined["about_dateTime"], errors="coerce")
+    elif "dateTime" in combined.columns:
+        combined["dateTime"] = pd.to_datetime(combined["dateTime"], errors="coerce")
+
+    if mode == "pandas":
+        return combined
+
+    # polars: convert from pandas to polars, then coerce datetime if needed
+    result_pl = pl.from_pandas(combined)
+
+    # Parse datetimes in polars if present (attempt common formats)
+    if "about_dateTime" in result_pl.columns:
+        # try timezone-aware then fallback to naive if parsing fails
+        try:
+            result_pl = result_pl.with_columns(
+                pl.col("about_dateTime").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S%z").alias("about_dateTime")
+            )
+        except Exception:
+            result_pl = result_pl.with_columns(
+                pl.col("about_dateTime").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S").alias("about_dateTime")
+            )
+    elif "dateTime" in result_pl.columns:
+        try:
+            result_pl = result_pl.with_columns(
+                pl.col("dateTime").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S%z").alias("dateTime")
+            )
+        except Exception:
+            result_pl = result_pl.with_columns(
+                pl.col("dateTime").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S").alias("dateTime")
+            )
+
+    # Deduplicate in polars by composite key if both columns exist
+    if all(c in result_pl.columns for c in ["game_id", "eventId"]):
+        result_pl = result_pl.unique(subset=["game_id", "eventId"])
 
     return result_pl
