@@ -480,6 +480,7 @@ dependencies = [
     { name = "polars" },
     { name = "scikit-learn" },
     { name = "seaborn" },
+    { name = "sportypy" },
     { name = "tqdm" },
 ]
 
@@ -494,6 +495,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.40.1" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "sportypy", specifier = ">=1.0.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
@@ -867,6 +869,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "sportypy"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c6/ce/1a2c2d361129ca596ab6cb90cf40661056899cedb3a13e9c6641af856a9a/sportypy-1.0.0.tar.gz", hash = "sha256:21e2467bff76f8e5dae7fc33d7851a18e49a2218775481ed63dc7528a25bb604", size = 179715, upload-time = "2022-09-13T20:12:33.371Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b4/6a/7b891545f44a7c98d3442d84069cb533f58b49538a20c68a0d2430c52e5c/sportypy-1.0.0-py3-none-any.whl", hash = "sha256:e0316039b96930a614e40150e081ee4f04ab2cf08db005d8c13f37fed3432831", size = 163098, upload-time = "2022-09-13T20:12:31.627Z" },
 ]
 
 [[package]]
