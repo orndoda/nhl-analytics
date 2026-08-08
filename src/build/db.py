@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS playbyplay (
     home_sog                 SMALLINT,
     PRIMARY KEY (game_id, event_id)
 );
+CREATE INDEX IF NOT EXISTS idx_playbyplay_game_id ON playbyplay (game_id);
 CREATE INDEX IF NOT EXISTS idx_playbyplay_type ON playbyplay (type_desc_key);
 CREATE INDEX IF NOT EXISTS idx_playbyplay_scoring_player ON playbyplay (scoring_player_id);
 
