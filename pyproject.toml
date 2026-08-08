@@ -12,8 +12,11 @@ dependencies = [
     "numpy>=2.4.6",
     "pandas>=3.0.3",
     "polars>=1.40.1",
+    "psycopg>=3.3.4",
+    "pyyaml>=6.0.3",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
     "sportypy>=1.0.0",
+    "sqlalchemy>=2.0.51",
     "tqdm>=4.67.3",
 ]
