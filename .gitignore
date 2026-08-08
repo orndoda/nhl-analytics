@@ -27,6 +27,8 @@ share/python-wheels/
 test.ipynb
 data/raw/
 data/processed/
+data/*.sqlite
+data/*.sqlite-*
 MANIFEST
 
 # PyInstaller
